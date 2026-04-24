@@ -49,7 +49,7 @@ A comprehensive regime-aware statistical arbitrage system combining classical qu
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/star-e.git
+git clone https://github.com/US30/star-e.git
 cd star-e
 
 # Create virtual environment
