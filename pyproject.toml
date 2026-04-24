@@ -62,6 +62,7 @@ dependencies = [
     # CLI
     "typer>=0.12.0",
     "rich>=13.7.0",
+    "streamlit>=1.30.0",
 
     # Async
     "aiohttp>=3.9.0",

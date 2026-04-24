@@ -58,6 +58,7 @@ data/processed/*
 
 # MLflow
 mlruns/
+*.db
 
 # Logs
 *.log
