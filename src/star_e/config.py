@@ -1,10 +1,10 @@
 """Configuration settings for StAR-E."""
 
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 import torch
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -15,6 +15,7 @@ class Settings(BaseSettings):
         env_prefix="STAR_E_",
         env_file=".env",
         env_file_encoding="utf-8",
+        extra="ignore",
     )
 
     # Paths
@@ -28,7 +29,7 @@ class Settings(BaseSettings):
     binance_testnet: bool = True
 
     # Data settings
-    default_tickers: list[str] = Field(
+    default_tickers: list[str] | str = Field(
         default=[
             "AAPL", "MSFT", "GOOGL", "AMZN", "META",
             "NVDA", "TSLA", "JPM", "V", "JNJ",
@@ -36,7 +37,7 @@ class Settings(BaseSettings):
             "SPY", "QQQ", "IWM",
         ]
     )
-    default_crypto_pairs: list[str] = Field(
+    default_crypto_pairs: list[str] | str = Field(
         default=["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT"]
     )
     default_start_date: str = "2018-01-01"
@@ -89,6 +90,13 @@ class Settings(BaseSettings):
 
     # Dashboard settings
     dashboard_port: int = 8501
+
+    @field_validator("default_tickers", "default_crypto_pairs", mode="before")
+    @classmethod
+    def parse_csv(cls, v: Any):
+        if isinstance(v, str):
+            return [x.strip() for x in v.split(",") if x.strip()]
+        return v
 
 
 def get_device() -> torch.device:
