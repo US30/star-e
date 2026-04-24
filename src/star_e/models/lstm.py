@@ -1,15 +1,130 @@
 """LSTM model with attention for time series forecasting."""
 
-from typing import Optional
+from typing import Optional, Literal
 
 import mlflow
 import numpy as np
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torch.utils.data import DataLoader, TensorDataset
 
 from star_e.config import get_device
 from star_e.models.base import BaseForecaster
+
+
+class SharpeLoss(nn.Module):
+    """
+    Sharpe Ratio based loss function.
+
+    Maximizes the Sharpe ratio of predicted returns.
+    Loss = -Sharpe = -(mean(returns) / std(returns))
+    """
+
+    def __init__(self, risk_free_rate: float = 0.0, eps: float = 1e-8):
+        super().__init__()
+        self.risk_free_rate = risk_free_rate
+        self.eps = eps
+
+    def forward(self, predictions: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+        """
+        Calculate negative Sharpe ratio.
+
+        Args:
+            predictions: Predicted returns
+            targets: Actual returns (used to compute realized PnL)
+
+        Returns:
+            Negative Sharpe ratio (for minimization)
+        """
+        pnl = predictions * targets
+
+        excess_returns = pnl - self.risk_free_rate
+        mean_return = torch.mean(excess_returns)
+        std_return = torch.std(excess_returns) + self.eps
+
+        sharpe = mean_return / std_return
+
+        return -sharpe
+
+
+class SortinoLoss(nn.Module):
+    """
+    Sortino Ratio based loss function.
+
+    Similar to Sharpe but uses downside deviation instead of
+    standard deviation, penalizing only negative returns.
+    """
+
+    def __init__(
+        self,
+        risk_free_rate: float = 0.0,
+        target_return: float = 0.0,
+        eps: float = 1e-8,
+    ):
+        super().__init__()
+        self.risk_free_rate = risk_free_rate
+        self.target_return = target_return
+        self.eps = eps
+
+    def forward(self, predictions: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+        """
+        Calculate negative Sortino ratio.
+
+        Args:
+            predictions: Predicted returns
+            targets: Actual returns
+
+        Returns:
+            Negative Sortino ratio (for minimization)
+        """
+        pnl = predictions * targets
+
+        excess_returns = pnl - self.risk_free_rate
+        mean_return = torch.mean(excess_returns)
+
+        downside = torch.clamp(pnl - self.target_return, max=0)
+        downside_deviation = torch.sqrt(torch.mean(downside ** 2) + self.eps)
+
+        sortino = mean_return / downside_deviation
+
+        return -sortino
+
+
+class CombinedRiskLoss(nn.Module):
+    """
+    Combined loss using both Sharpe and Sortino ratios.
+
+    Loss = alpha * (-Sharpe) + (1-alpha) * (-Sortino) + beta * MSE
+    """
+
+    def __init__(
+        self,
+        sharpe_weight: float = 0.3,
+        sortino_weight: float = 0.3,
+        mse_weight: float = 0.4,
+        risk_free_rate: float = 0.0,
+    ):
+        super().__init__()
+        self.sharpe_weight = sharpe_weight
+        self.sortino_weight = sortino_weight
+        self.mse_weight = mse_weight
+
+        self.sharpe_loss = SharpeLoss(risk_free_rate)
+        self.sortino_loss = SortinoLoss(risk_free_rate)
+        self.mse_loss = nn.MSELoss()
+
+    def forward(self, predictions: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+        """Calculate combined loss."""
+        sharpe = self.sharpe_loss(predictions, targets)
+        sortino = self.sortino_loss(predictions, targets)
+        mse = self.mse_loss(predictions, targets)
+
+        return (
+            self.sharpe_weight * sharpe +
+            self.sortino_weight * sortino +
+            self.mse_weight * mse
+        )
 
 
 class AttentionLSTM(nn.Module):
@@ -112,6 +227,7 @@ class LSTMForecaster(BaseForecaster):
         batch_size: int = 32,
         epochs: int = 100,
         patience: int = 10,
+        loss_type: Literal["mse", "sharpe", "sortino", "combined"] = "mse",
         device: Optional[torch.device] = None,
     ):
         """
@@ -127,6 +243,11 @@ class LSTMForecaster(BaseForecaster):
             batch_size: Training batch size
             epochs: Maximum training epochs
             patience: Early stopping patience
+            loss_type: Loss function type:
+                - "mse": Mean Squared Error
+                - "sharpe": Sharpe Ratio based loss
+                - "sortino": Sortino Ratio based loss
+                - "combined": Weighted combination of all
             device: Torch device (auto-detected if None)
         """
         self.sequence_length = sequence_length
@@ -138,6 +259,7 @@ class LSTMForecaster(BaseForecaster):
         self.batch_size = batch_size
         self.epochs = epochs
         self.patience = patience
+        self.loss_type = loss_type
         self.device = device or get_device()
 
         self.model: Optional[AttentionLSTM] = None
@@ -221,7 +343,17 @@ class LSTMForecaster(BaseForecaster):
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
             optimizer, mode="min", factor=0.5, patience=5
         )
-        criterion = nn.MSELoss()
+
+        if self.loss_type == "mse":
+            criterion = nn.MSELoss()
+        elif self.loss_type == "sharpe":
+            criterion = SharpeLoss()
+        elif self.loss_type == "sortino":
+            criterion = SortinoLoss()
+        elif self.loss_type == "combined":
+            criterion = CombinedRiskLoss()
+        else:
+            criterion = nn.MSELoss()
 
         # Training loop with early stopping
         best_val_loss = float("inf")
@@ -272,6 +404,7 @@ class LSTMForecaster(BaseForecaster):
                     "lstm_num_layers": self.num_layers,
                     "lstm_sequence_length": self.sequence_length,
                     "lstm_attention_heads": self.attention_heads,
+                    "lstm_loss_type": self.loss_type,
                     "lstm_epochs_trained": epoch + 1,
                 }
             )

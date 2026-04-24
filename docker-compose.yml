@@ -12,12 +12,27 @@ services:
     environment:
       - STAR_E_DATA_DIR=/app/data
       - MLFLOW_TRACKING_URI=/app/mlruns
+      - STAR_E_BINANCE_API_KEY=${BINANCE_API_KEY:-}
+      - STAR_E_BINANCE_API_SECRET=${BINANCE_API_SECRET:-}
     command: uvicorn star_e.api.main:app --host 0.0.0.0 --port 8000
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: star-e-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - REACT_APP_API_URL=http://api:8000
+    depends_on:
+      - api
     restart: unless-stopped
 
   dashboard:

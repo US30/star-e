@@ -1,0 +1,108 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --color-bull: #22c55e;
+  --color-bear: #ef4444;
+  --color-sideways: #64748b;
+  --color-primary: #3b82f6;
+  --color-background: #0f172a;
+  --color-surface: #1e293b;
+  --color-text: #f8fafc;
+  --color-text-secondary: #94a3b8;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: var(--color-background);
+  color: var(--color-text);
+}
+
+.card {
+  @apply bg-slate-800 rounded-lg p-4 shadow-lg;
+}
+
+.metric-card {
+  @apply bg-slate-800 rounded-lg p-4 shadow-lg border border-slate-700;
+}
+
+.metric-value {
+  @apply text-2xl font-bold;
+}
+
+.metric-label {
+  @apply text-sm text-slate-400;
+}
+
+.metric-change {
+  @apply text-sm font-medium;
+}
+
+.metric-change.positive {
+  @apply text-green-500;
+}
+
+.metric-change.negative {
+  @apply text-red-500;
+}
+
+.regime-bull {
+  @apply bg-green-500/20 text-green-500 border-green-500;
+}
+
+.regime-bear {
+  @apply bg-red-500/20 text-red-500 border-red-500;
+}
+
+.regime-sideways {
+  @apply bg-slate-500/20 text-slate-400 border-slate-500;
+}
+
+.nav-link {
+  @apply px-4 py-2 rounded-md text-slate-300 hover:bg-slate-700 hover:text-white transition-colors;
+}
+
+.nav-link.active {
+  @apply bg-blue-600 text-white;
+}
+
+.btn-primary {
+  @apply bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md transition-colors;
+}
+
+.btn-secondary {
+  @apply bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-md transition-colors;
+}
+
+.input {
+  @apply bg-slate-700 border border-slate-600 rounded-md px-3 py-2 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500;
+}
+
+.chart-tooltip {
+  @apply bg-slate-900 border border-slate-700 rounded-md p-2 shadow-lg text-sm;
+}
+
+svg text {
+  fill: var(--color-text-secondary);
+}
+
+.axis-label {
+  font-size: 12px;
+  fill: var(--color-text-secondary);
+}
+
+.grid-line {
+  stroke: #334155;
+  stroke-opacity: 0.5;
+}
